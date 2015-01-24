@@ -1,7 +1,19 @@
-#!/usr/bin/python3 -O
+#!/usr/bin/env python3 -O
 
 import argparse
 import subprocess
+import sys
+
+def usage():
+  print("%s target_host target_port" % sys.argv[0])
+
+if len(sys.argv) < 3:
+  usage()
+  sys.exit(1)
+
+target_host = sys.argv[1]
+target_port = sys.argv[2]
+
 
 KEX_ALGORITHMS = {
     'curve25519-sha256@libssh.org':         [],
@@ -30,7 +42,7 @@ HOST_KEY_ALGORITHMS = {
     'ecdsa-sha2-nistp256':                      [ 'BULLRUN' ],
     'ssh-dss-cert-v01@openssh.com':             [ 'Small modulus', 'BULLRUN' ],
     'ssh-dss-cert-v00@openssh.com':             [ 'Small modulus', 'BULLRUN' ],
-    'ssh-dss':                                  [ '1024 bit modulus', 'BULLRUN' ],
+    'ssh-dss':                                  [ 'Small modulus', 'BULLRUN' ],
 }
 
 CIPHERS = {
@@ -85,7 +97,7 @@ def ssh(host, port, **kwargs):
 
     cmd.append('-p')
     cmd.append(str(port))
-    cmd.append('localhost')
+    cmd.append(host)
     cmd.append('/bin/true')
     proc = subprocess.Popen(cmd)
     return proc.wait() == 0
@@ -93,7 +105,7 @@ def ssh(host, port, **kwargs):
 print('# Testing key exchange')
 for ( kex, problems ) in KEX_ALGORITHMS.items():
     allowed = ssh(
-        'localhost', 22,
+        target_host, target_port,
         KexAlgorithms     = [ kex ],
         HostKeyAlgorithms = HOST_KEY_ALGORITHMS.keys(),
         Ciphers           = CIPHERS.keys(),
@@ -106,7 +118,7 @@ for ( kex, problems ) in KEX_ALGORITHMS.items():
 print('# Testing server authentication')
 for ( hostkey, problems ) in HOST_KEY_ALGORITHMS.items():
     allowed = ssh(
-        'localhost', 22,
+        target_host, target_port,
         KexAlgorithms      = KEX_ALGORITHMS.keys(),
         HostKeyAlgorithms  = [ hostkey ],
         Ciphers            = CIPHERS.keys(),
@@ -122,7 +134,7 @@ allowed_ciphers = set()
 print('# Testing symmetric ciphers')
 for ( cipher, problems ) in CIPHERS.items():
     allowed = ssh(
-        'localhost', 22,
+        target_host, target_port,
         KexAlgorithms     = KEX_ALGORITHMS.keys(),
         HostKeyAlgorithms = HOST_KEY_ALGORITHMS.keys(),
         Ciphers           = [ cipher ],
@@ -143,7 +155,7 @@ allowed_macs = set()
 print('# Testing message authentication codes')
 for ( mac, problems ) in MACS.items():
     allowed = ssh(
-        'localhost', 22,
+        target_host, target_port,
         KexAlgorithms     = KEX_ALGORITHMS.keys(),
         HostKeyAlgorithms = HOST_KEY_ALGORITHMS.keys(),
         Ciphers           = CIPHERS.keys(),
