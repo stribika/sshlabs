@@ -150,9 +150,9 @@ def scan(addr):
 
         # Discard first KEX packet. I don't think this is ever GEX, which is all
         # we care about.
-#        if result.kex_init.first_kex_packet_follows:
-#            print("discarding first kex packet")
-#            ( payload, padding, mac ) = recv_binary_packet(server, 0)
+        if result.kex_init.first_kex_packet_follows:
+            print("discarding first kex packet")
+            ( payload, padding, mac ) = recv_binary_packet(server, 0)
 
         if DH_GEX_SHA256 in result.kex_init.kex_algorithms or DH_GEX_SHA1 in result.kex_init.kex_algorithms:
             kex_init = result.kex_init.clone()
@@ -219,7 +219,7 @@ def name_list_bytes(name_list):
     return struct.pack(">L", len(s)) + s.encode("ASCII")
 
 def parse_boolean(buf):
-    return ( buf[1:], buf[0] != b'\x00' )
+    return ( buf[1:], buf[0] != 0 )
 
 def boolean_bytes(boolean):
     return b'\x01' if boolean else b'\x00' 
