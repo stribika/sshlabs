@@ -88,7 +88,9 @@ def scan(addr):
             send_binary_packet(server, dh_gex_request.get_bytes(), b'')
 
             ( payload, padding, mac ) = recv_binary_packet(server, 0)
-            print(payload)
+            dh_gex_group = sshmessage.DHGEXGroup()
+            dh_gex_group.parse(payload)
+            print(dh_gex_group.prime, dh_gex_group.generator)
 
         return result
     finally:

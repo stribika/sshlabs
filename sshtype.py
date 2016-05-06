@@ -1,8 +1,20 @@
 import struct
 
+def parse_string(buf):
+    ( buf, length ) = parse_uint32(buf)
+    return ( buf[length:], buf[:length] )
+
+def parse_mpint(buf):
+    ( buf, mpint ) = parse_string(buf)
+    value = 0
+    for b in mpint:
+        value <<= 8
+        value += b
+    return ( buf, value )
+
 def parse_name_list(buf):
-    length = struct.unpack(">L", buf[:4])[0]
-    return ( buf[4 + length:], buf[4:4 + length].decode("ASCII").split(",") )
+    ( buf, string ) = parse_string(buf)
+    return ( buf, string.decode("ASCII").split(",") )
 
 def name_list_bytes(name_list):
     s = ",".join(name_list)

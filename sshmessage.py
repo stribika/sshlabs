@@ -1,3 +1,8 @@
+"""
+This might look like an SSH protocol implementation. IT IS NOT. It's not even
+remotely secure. Nothing is verified, nothing is random. DO NOT USE.
+"""
+
 import struct
 
 import sshtype
@@ -97,3 +102,22 @@ class DHGEXRequest(object):
 
     def get_bytes(self):
         return struct.pack(">BLLL", SSH_MSG_KEX_DH_GEX_REQUEST, self.min, self.n, self.max)
+
+class DHGEXGroup(object):
+    def __init__(self):
+        self.prime = None
+        self.generator = None
+
+    def parse(self, payload):
+        msg_type = struct.unpack(">B", payload[:1])[0]
+        payload = payload[1:]
+
+        if msg_type != SSH_MSG_KEX_DH_GEX_GROUP:
+            raise Exception("SSH_MSG_KEX_DH_GEX_GROUP expected")
+    
+        ( payload, self.prime ) = sshtype.parse_mpint(payload)
+        ( payload, self.generator ) = sshtype.parse_mpint(payload)
+
+        if len(payload) > 0:
+            print("WARNING! Extra bytes after SSH_MSG_KEXINIT.")
+        
