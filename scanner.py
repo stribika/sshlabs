@@ -124,7 +124,10 @@ def recv_binary_packet(server, mac_length):
         print("WARNING! Less than 4 bytes of padding in binary packet.")
 
     body_fmt = "{}s{}s{}s".format(packet_length - padding_length - 1, padding_length, mac_length)
-    body = recv_bytes(server, struct.calcsize(body_fmt))
+    size = struct.calcsize(body_fmt)
+    if size + len(header) > 35000:
+        raise Exception("packet too large")
+    body = recv_bytes(server, size)
     ( payload, padding, mac ) = struct.unpack(body_fmt, body)
     return ( payload, padding, mac )
 
