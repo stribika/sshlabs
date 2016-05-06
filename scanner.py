@@ -81,6 +81,11 @@ def scan(addr):
             kex_init.first_kex_packet_follows = False
             kex_init.reserved = 0
             send_binary_packet(server, kex_init.get_bytes(), b'')
+            dh_gex_request = sshmessage.DHGEXRequest()
+            dh_gex_request.min = 4096
+            dh_gex_request.n = 4096
+            dh_gex_request.max = 4096
+            send_binary_packet(server, dh_gex_request.get_bytes(), b'')
 
             ( payload, padding, mac ) = recv_binary_packet(server, 0)
             print(payload)

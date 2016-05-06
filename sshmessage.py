@@ -2,8 +2,12 @@ import struct
 
 import sshtype
 
-SSH_MSG_KEXINIT = 20
-SSH_MSG_KEX_DH_GEX_REQUEST = 34
+SSH_MSG_KEXINIT                = 20
+SSH_MSG_KEX_DH_GEX_REQUEST_OLD = 30
+SSH_MSG_KEX_DH_GEX_GROUP       = 31
+SSH_MSG_KEX_DH_GEX_INIT        = 32
+SSH_MSG_KEX_DH_GEX_REPLY       = 33
+SSH_MSG_KEX_DH_GEX_REQUEST     = 34
 
 class IdentificationString(object):
     def __init__(self, protoversion = None, softwareversion = None):
@@ -85,4 +89,11 @@ class KexInit(object):
         payload += sshtype.uint32_bytes(self.reserved)
         return payload
 
+class DHGEXRequest(object):
+    def __init__(self):
+        self.min = None
+        self.n = None
+        self.max = None
 
+    def get_bytes(self):
+        return struct.pack(">BLLL", SSH_MSG_KEX_DH_GEX_REQUEST, self.min, self.n, self.max)
