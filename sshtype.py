@@ -10,6 +10,11 @@ def parse_mpint(buf):
     for b in mpint:
         value <<= 8
         value += b
+
+    # negative number
+    if mpint[0] & 0x80:
+        value = ~value + 1
+
     return ( buf, value )
 
 def parse_name_list(buf):
