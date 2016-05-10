@@ -14,11 +14,6 @@ SSH_MSG_KEX_DH_GEX_INIT        = 32
 SSH_MSG_KEX_DH_GEX_REPLY       = 33
 SSH_MSG_KEX_DH_GEX_REQUEST     = 34
 
-class IdentificationString(object):
-    def __init__(self, protoversion = None, softwareversion = None):
-        self.protoversion = protoversion
-        self.softwareversion = softwareversion
-
 class KexInit(object):
     def __init__(self):
         self.cookie = None
