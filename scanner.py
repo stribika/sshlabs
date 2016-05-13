@@ -20,31 +20,28 @@ def main():
 #        try:
             print("Scanning {}:{}".format(*addr))
             result = scan(addr)
+            print(result.identification_string)
+            print(result.kex_init)
             if supports_dh_gex(result.kex_init):
-                known_count = len(result.dh_gex_groups)
-                no_new_count = 0
-                for dh_group_size in range(2**10, 2**13 + 2**9, 2**9):
-                    no_new_count -= 1
-                    while (known_count / (known_count + 1))**no_new_count > 0.05:
-                        dh_result = scan(addr, dh_group_size)
-                        if dh_result.dh_gex_groups.issubset(result.dh_gex_groups):
-                            no_new_count += 1
-                        else:
-                            result.dh_gex_groups.update(dh_result.dh_gex_groups)
-                            known_count = len(result.dh_gex_groups)
-                            no_new_count = 0
-            print("protocol version: " + result.identification_string.protoversion)
-            print("kex_algorithms:", ", ".join(result.kex_init.kex_algorithms))
-            print("server_host_key_algorithms:", ", ".join(result.kex_init.server_host_key_algorithms))
-            print("encryption_algorithms_client_to_server:", ", ".join(result.kex_init.encryption_algorithms_c2s))
-            print("encryption_algorithms_server_to_client:", ", ".join(result.kex_init.encryption_algorithms_s2c))
-            print("mac_algorithms_client_to_server:", ", ".join(result.kex_init.mac_algorithms_c2s))
-            print("mac_algorithms_server_to_client:", ", ".join(result.kex_init.mac_algorithms_s2c))
+                collect_dh_groups(result, addr)
             print("\n".join([ str(grp) for grp in result.dh_gex_groups ]))
             print("Finished scanning {}:{}\n".format(*addr))
 #        except Exception as ex:
 #            print("ERROR!", "Unable to scan {}:{}".format(*addr), ex)
 
+def collect_dh_groups(result, addr):
+    known_count = len(result.dh_gex_groups)
+    no_new_count = 0
+    for dh_group_size in range(2**10, 2**13 + 2**9, 2**9):
+        no_new_count -= 1
+        while (known_count / (known_count + 1))**no_new_count > 0.05:
+            dh_result = scan(addr, dh_group_size)
+            if dh_result.dh_gex_groups.issubset(result.dh_gex_groups):
+                no_new_count += 1
+            else:
+                result.dh_gex_groups.update(dh_result.dh_gex_groups)
+                known_count = len(result.dh_gex_groups)
+                no_new_count = 0
 
 def addresses(args):
     for arg in args:

@@ -13,6 +13,7 @@ class IdentificationString(object):
         else:
             self.protoversion    = kwargs["protoversion"]
             self.softwareversion = kwargs["softwareversion"]
+            self.comments        = kwargs.get("comments")
     
     def __recv(self, conn):
         ident_str = b""
@@ -29,14 +30,19 @@ class IdentificationString(object):
         if len(ident_str) != 3:
             raise Exception("exactly 3 dash separated parts expected in the identification string")
 
-        ( self.protoversion, self.softwareversion ) = ident_str[1:]
+        self.protoversion = ident_str[1]
+        version_and_comments = ident_str[2].split(" ", 2)
+        self.softwareversion = version_and_comments[0]
+        self.comments = version_and_comments[1] if len(version_and_comments) > 1 else None
     
     def send(self, conn):
-        conn.send(("-".join([
-            "SSH",
-            self.protoversion,
-            self.softwareversion
-        ]) + "\r\n").encode("ASCII"))
+        conn.send((str(self) + "\r\n").encode("ASCII"))
+
+    def __str__(self):
+        version_and_comments = self.softwareversion
+        if self.comments:
+            version_and_comments += " " + self.comments
+        return "SSH-{0}-{1}".format(self.protoversion, version_and_comments)
 
 class BinaryPacket(object):
     """

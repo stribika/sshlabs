@@ -98,6 +98,18 @@ class KexInit(object):
             languages_s2c=self.languages_s2c
         )
 
+    def __str__(self):
+        def strlist(name, value):
+            return name + ": " + ", ".join(value)
+        return "\n".join([
+            strlist("Key exchange algorithms", self.kex_algorithms),
+            strlist("Host key algorithms", self.server_host_key_algorithms),
+            strlist("Encryption algorithms (client to server)", self.encryption_algorithms_c2s),
+            strlist("Encryption algorithms (server to client)", self.encryption_algorithms_s2c),
+            strlist("MAC algorithms (client to server)", self.mac_algorithms_c2s),
+            strlist("MAC algorithms (server to client)", self.mac_algorithms_s2c),
+        ])
+
 class DHGEXRequest(object):
     def __init__(self, **kwargs):
         if "packet" in kwargs:
@@ -140,6 +152,3 @@ class DHGEXGroup(object):
 
     def __str__(self):
         return "DHGEXGoup(prime={0}, generator={1})".format(hex(self.prime), hex(self.generator))
-
-    def __repr__(self):
-        return str(self)
