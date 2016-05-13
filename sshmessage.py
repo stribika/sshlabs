@@ -131,4 +131,15 @@ class DHGEXGroup(object):
 
         if len(payload) > 0:
             print("WARNING! Extra bytes after SSH_MSG_KEXINIT.")
-        
+    
+    def __eq__(self, value):
+        return type(self) == type(value) and self.prime == value.prime and self.generator == value.generator
+
+    def __hash__(self):
+        return hash((type(self), self.prime, self.generator))
+
+    def __str__(self):
+        return "DHGEXGoup(prime={0}, generator={1})".format(hex(self.prime), hex(self.generator))
+
+    def __repr__(self):
+        return str(self)

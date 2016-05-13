@@ -12,6 +12,7 @@ class ScanResult(object):
     def __init__(self):
         self.identification_string = None
         self.kex_init = None
+        self.dh_gex_groups = set()
 
 
 def main():
@@ -19,6 +20,19 @@ def main():
 #        try:
             print("Scanning {}:{}".format(*addr))
             result = scan(addr)
+            if supports_dh_gex(result.kex_init):
+                known_count = len(result.dh_gex_groups)
+                no_new_count = 0
+                for dh_group_size in range(2**10, 2**13 + 2**9, 2**9):
+                    no_new_count -= 1
+                    while (known_count / (known_count + 1))**no_new_count > 0.05:
+                        dh_result = scan(addr, dh_group_size)
+                        if dh_result.dh_gex_groups.issubset(result.dh_gex_groups):
+                            no_new_count += 1
+                        else:
+                            result.dh_gex_groups.update(dh_result.dh_gex_groups)
+                            known_count = len(result.dh_gex_groups)
+                            no_new_count = 0
             print("protocol version: " + result.identification_string.protoversion)
             print("kex_algorithms:", ", ".join(result.kex_init.kex_algorithms))
             print("server_host_key_algorithms:", ", ".join(result.kex_init.server_host_key_algorithms))
@@ -26,6 +40,7 @@ def main():
             print("encryption_algorithms_server_to_client:", ", ".join(result.kex_init.encryption_algorithms_s2c))
             print("mac_algorithms_client_to_server:", ", ".join(result.kex_init.mac_algorithms_c2s))
             print("mac_algorithms_server_to_client:", ", ".join(result.kex_init.mac_algorithms_s2c))
+            print("\n".join([ str(grp) for grp in result.dh_gex_groups ]))
             print("Finished scanning {}:{}\n".format(*addr))
 #        except Exception as ex:
 #            print("ERROR!", "Unable to scan {}:{}".format(*addr), ex)
@@ -55,7 +70,7 @@ def addresses(args):
 DH_GEX_SHA1 = "diffie-hellman-group-exchange-sha1"
 DH_GEX_SHA256 = "diffie-hellman-group-exchange-sha256"
 
-def scan(addr):
+def scan(addr, dh_group_size=1024):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         server.connect(addr)
@@ -74,19 +89,20 @@ def scan(addr):
             print("discarding first kex packet")
             BinaryPacket(recvfrom=server)
 
-        if DH_GEX_SHA256 in result.kex_init.kex_algorithms or DH_GEX_SHA1 in result.kex_init.kex_algorithms:
+        if supports_dh_gex(result.kex_init):
             kex_init = result.kex_init.optimal_response()
             kex_init.kex_algorithms = [ DH_GEX_SHA256, DH_GEX_SHA1 ]
             kex_init.to_packet().send(server)
-            dh_gex_request = sshmessage.DHGEXRequest(n=1024)
+            dh_gex_request = sshmessage.DHGEXRequest(n=dh_group_size)
             dh_gex_request.to_packet().send(server)
-
-            dh_gex_group = sshmessage.DHGEXGroup(packet=BinaryPacket(recvfrom=server))
-            print(dh_gex_group.prime, dh_gex_group.generator)
+            result.dh_gex_groups.add(sshmessage.DHGEXGroup(packet=BinaryPacket(recvfrom=server)))
 
         return result
     finally:
         server.close()
+
+def supports_dh_gex(kex_init):
+    return DH_GEX_SHA256 in kex_init.kex_algorithms or DH_GEX_SHA1 in kex_init.kex_algorithms
 
 if __name__ == "__main__":
     main()
