@@ -22,10 +22,10 @@ def main():
             print("protocol version: " + result.identification_string.protoversion)
             print("kex_algorithms:", ", ".join(result.kex_init.kex_algorithms))
             print("server_host_key_algorithms:", ", ".join(result.kex_init.server_host_key_algorithms))
-            print("encryption_algorithms_client_to_server:", ", ".join(result.kex_init.encryption_algorithms_client_to_server))
-            print("encryption_algorithms_server_to_client:", ", ".join(result.kex_init.encryption_algorithms_server_to_client))
-            print("mac_algorithms_client_to_server:", ", ".join(result.kex_init.mac_algorithms_client_to_server))
-            print("mac_algorithms_server_to_client:", ", ".join(result.kex_init.mac_algorithms_server_to_client))
+            print("encryption_algorithms_client_to_server:", ", ".join(result.kex_init.encryption_algorithms_c2s))
+            print("encryption_algorithms_server_to_client:", ", ".join(result.kex_init.encryption_algorithms_s2c))
+            print("mac_algorithms_client_to_server:", ", ".join(result.kex_init.mac_algorithms_c2s))
+            print("mac_algorithms_server_to_client:", ", ".join(result.kex_init.mac_algorithms_s2c))
             print("Finished scanning {}:{}\n".format(*addr))
 #        except Exception as ex:
 #            print("ERROR!", "Unable to scan {}:{}".format(*addr), ex)
@@ -66,9 +66,7 @@ def scan(addr):
             return result
 
         IdentificationString(protoversion="2.0", softwareversion="SSHLabsScanner_0.1").send(server)
-        packet = BinaryPacket(recvfrom=server)
-        result.kex_init = sshmessage.KexInit()
-        result.kex_init.parse(packet.payload)
+        result.kex_init = sshmessage.KexInit(packet=BinaryPacket(recvfrom=server))
 
         # Discard first KEX packet. I don't think this is ever GEX, which is all
         # we care about.
@@ -77,20 +75,13 @@ def scan(addr):
             BinaryPacket(recvfrom=server)
 
         if DH_GEX_SHA256 in result.kex_init.kex_algorithms or DH_GEX_SHA1 in result.kex_init.kex_algorithms:
-            kex_init = result.kex_init.clone()
+            kex_init = result.kex_init.optimal_response()
             kex_init.kex_algorithms = [ DH_GEX_SHA256, DH_GEX_SHA1 ]
-            kex_init.first_kex_packet_follows = False
-            kex_init.reserved = 0
-            BinaryPacket(payload=kex_init.get_bytes()).send(server)
-            dh_gex_request = sshmessage.DHGEXRequest()
-            dh_gex_request.min = 1024
-            dh_gex_request.n = 1024
-            dh_gex_request.max = 8192
-            BinaryPacket(payload=dh_gex_request.get_bytes()).send(server)
+            kex_init.to_packet().send(server)
+            dh_gex_request = sshmessage.DHGEXRequest(n=1024)
+            dh_gex_request.to_packet().send(server)
 
-            packet = BinaryPacket(recvfrom=server)
-            dh_gex_group = sshmessage.DHGEXGroup()
-            dh_gex_group.parse(packet.payload)
+            dh_gex_group = sshmessage.DHGEXGroup(packet=BinaryPacket(recvfrom=server))
             print(dh_gex_group.prime, dh_gex_group.generator)
 
         return result
