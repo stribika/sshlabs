@@ -40,13 +40,15 @@ def collect_dh_groups(result, addr):
         no_new_count -= 1 # a hack to try each size at least once
         probability_of_more = (known_count / (known_count + 1))**no_new_count
         while probability_of_more > 0.05:
-            dh_result = scan(addr, dh_group_size)
+            dh_result = scan(addr, dh_group_size, True)
             if dh_result.dh_gex_groups.issubset(result.dh_gex_groups):
                 no_new_count += 1
             else:
                 result.dh_gex_groups.update(dh_result.dh_gex_groups)
                 known_count = len(result.dh_gex_groups)
                 no_new_count = 0
+            probability_of_more = (known_count / (known_count + 1))**no_new_count
+            print("probability of more DH groups", probability_of_more)
 
 def addresses(args):
     for arg in args:
@@ -72,7 +74,7 @@ def addresses(args):
 DH_GEX_SHA1 = "diffie-hellman-group-exchange-sha1"
 DH_GEX_SHA256 = "diffie-hellman-group-exchange-sha256"
 
-def scan(addr, dh_group_size=1024):
+def scan(addr, dh_group_size=1024, quick=False):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         server.connect(addr)
@@ -99,7 +101,7 @@ def scan(addr, dh_group_size=1024):
             dh_gex_group = get_dh_gex_group(ssh_server, result.kex_init, dh_group_size)
             result.dh_gex_groups.add(dh_gex_group)
             # No need to do this again.
-            if len(result.dh_gex_groups) > 1:
+            if quick:
                 return result
             dh_secret = csprng.randint(0, dh_gex_group.prime - 1)
             dh_public = pow(dh_gex_group.generator, dh_secret, dh_gex_group.prime)
