@@ -152,3 +152,15 @@ class DHGEXGroup(object):
 
     def __str__(self):
         return "DHGEXGoup(prime={0}, generator={1})".format(hex(self.prime), hex(self.generator))
+
+class DHGEXInit(object):
+    def __init__(self, **kwargs):
+        if "packet" in kwargs:
+            self.__parse(kwargs["packet"].payload)
+        else:
+            self.e = kwargs["e"]
+
+    def to_packet(self):
+        payload = struct.pack(">B", SSH_MSG_KEX_DH_GEX_INIT) + sshtype.mpint_bytes(self.e)
+        return sshtransport.BinaryPacket(payload=payload)
+        

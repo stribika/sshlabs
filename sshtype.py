@@ -4,18 +4,32 @@ def parse_string(buf):
     ( buf, length ) = parse_uint32(buf)
     return ( buf[length:], buf[:length] )
 
+def string_bytes(string):
+    return uint32_bytes(len(string)) + string
+
 def parse_mpint(buf):
     ( buf, mpint ) = parse_string(buf)
     value = 0
     for b in mpint:
         value <<= 8
         value += b
-
     # negative number
     if mpint[0] & 0x80:
         value = ~value + 1
-
     return ( buf, value )
+
+def mpint_bytes(mpint):
+    buf = b""
+    if mpint <= 0:
+        buf += mpint & 0xff
+        mpint >>=8
+    while mpint != 0 and mpint != -1:
+        buf += bytes([mpint & 0xff])
+        mpint >>= 8
+    buf = buf[::-1]
+    if mpint == 0 and (buf[0] & 0x80):
+        buf = b"\x00" + buf
+    return string_bytes(buf)
 
 def parse_name_list(buf):
     ( buf, string ) = parse_string(buf)

@@ -1,6 +1,7 @@
 #!/usr/bin/python3 -O
 
 import netaddr
+import random
 import socket
 import struct
 import sys
@@ -8,11 +9,14 @@ import sys
 from sshtransport import *
 import sshmessage
 
+csprng = random.SystemRandom()
+
 class ScanResult(object):
     def __init__(self):
         self.identification_string = None
         self.kex_init = None
         self.dh_gex_groups = set()
+        self.issues = set()
 
 
 def main():
@@ -31,10 +35,11 @@ def main():
 
 def collect_dh_groups(result, addr):
     known_count = len(result.dh_gex_groups)
-    no_new_count = 0
+    no_new_count = 1
     for dh_group_size in range(2**10, 2**13 + 2**9, 2**9):
-        no_new_count -= 1
-        while (known_count / (known_count + 1))**no_new_count > 0.05:
+        no_new_count -= 1 # a hack to try each size at least once
+        probability_of_more = (known_count / (known_count + 1))**no_new_count
+        while probability_of_more > 0.05:
             dh_result = scan(addr, dh_group_size)
             if dh_result.dh_gex_groups.issubset(result.dh_gex_groups):
                 no_new_count += 1
@@ -71,28 +76,35 @@ def scan(addr, dh_group_size=1024):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         server.connect(addr)
+        ssh_server = SSHSocket(server)
         result = ScanResult()
-        result.identification_string = IdentificationString(recvfrom=server)
+        result.identification_string = ssh_server.recv()
 
         if result.identification_string.protoversion != "2.0" and result.identification_string.protoversion != '1.99':
             return result
 
-        IdentificationString(protoversion="2.0", softwareversion="SSHLabsScanner_0.1").send(server)
-        result.kex_init = sshmessage.KexInit(packet=BinaryPacket(recvfrom=server))
+        ssh_server.send(IdentificationString(
+            protoversion="2.0",
+            softwareversion="SSHLabsScanner_0.1"
+        ))
+        result.kex_init = sshmessage.KexInit(packet=ssh_server.recv())
 
         # Discard first KEX packet. I don't think this is ever GEX, which is all
         # we care about.
         if result.kex_init.first_kex_packet_follows:
             print("discarding first kex packet")
-            BinaryPacket(recvfrom=server)
+            ssh_server.recv()
 
         if supports_dh_gex(result.kex_init):
-            kex_init = result.kex_init.optimal_response()
-            kex_init.kex_algorithms = [ DH_GEX_SHA256, DH_GEX_SHA1 ]
-            kex_init.to_packet().send(server)
-            dh_gex_request = sshmessage.DHGEXRequest(n=dh_group_size)
-            dh_gex_request.to_packet().send(server)
-            result.dh_gex_groups.add(sshmessage.DHGEXGroup(packet=BinaryPacket(recvfrom=server)))
+            dh_gex_group = get_dh_gex_group(ssh_server, result.kex_init, dh_group_size)
+            result.dh_gex_groups.add(dh_gex_group)
+            # No need to do this again.
+            if len(result.dh_gex_groups) > 1:
+                return result
+            dh_secret = csprng.randint(0, dh_gex_group.prime - 1)
+            dh_public = pow(dh_gex_group.generator, dh_secret, dh_gex_group.prime)
+            ssh_server.send(sshmessage.DHGEXInit(e=dh_public).to_packet())
+            print(ssh_server.recv())
 
         return result
     finally:
@@ -100,6 +112,15 @@ def scan(addr, dh_group_size=1024):
 
 def supports_dh_gex(kex_init):
     return DH_GEX_SHA256 in kex_init.kex_algorithms or DH_GEX_SHA1 in kex_init.kex_algorithms
+
+def get_dh_gex_group(ssh_server, server_kex_init, dh_group_size):
+    kex_init = server_kex_init.optimal_response()
+    kex_init.kex_algorithms = [ DH_GEX_SHA256, DH_GEX_SHA1 ]
+    ssh_server.send(kex_init.to_packet())
+    dh_gex_request = sshmessage.DHGEXRequest(n=dh_group_size)
+    ssh_server.send(dh_gex_request.to_packet())
+    return sshmessage.DHGEXGroup(packet=ssh_server.recv())
+    
 
 if __name__ == "__main__":
     main()

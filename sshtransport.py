@@ -1,3 +1,4 @@
+import binascii
 import struct
 
 class IdentificationString(object):
@@ -19,7 +20,10 @@ class IdentificationString(object):
         ident_str = b""
 
         while b"\n" not in ident_str:
-            ident_str += conn.recv(64)
+            buf = conn.recv(64)
+            if len(buf) == 0:
+                break
+            ident_str += buf
 
         ident_str = ident_str[:-2 if ident_str.endswith(b"\r\n") else -1]
         ident_str = ident_str.decode("ASCII").split("-", 2)
@@ -88,6 +92,8 @@ class BinaryPacket(object):
         response = b""
         while len(response) < n:
             buf = conn.recv(n - len(response))
+            if len(buf) == 0:
+                break
             response += buf
         return response
 
@@ -100,6 +106,41 @@ class BinaryPacket(object):
         padding = padding_length * b'\x00'
         header = struct.pack(">LB", len(self.payload) + padding_length + 1, padding_length)
         conn.send(header + self.payload + padding + self.mac)
+
+    def __str__(self):
+        return binascii.hexlify(self.payload).decode("ASCII")
+
+class SSHSocket(object):
+    def __init__(self, tcp_socket):
+        self.__socket   = tcp_socket
+        self.__id_sent  = False
+        self.__id_recvd = False
+
+    def recv_identification(self):
+        self.__id_recvd = True
+        return IdentificationString(recvfrom=self.__socket)
+
+    def send_identification(self, identification_string):
+        self.__id_sent = True
+        identification_string.send(self.__socket)
+
+    def recv_packet(self):
+        return BinaryPacket(recvfrom=self.__socket)
+
+    def send_packet(self, binary_packet):
+        binary_packet.send(self.__socket)
+
+    def send(self, x):
+        if self.__id_sent:
+            self.send_packet(x)
+        else:
+            self.send_identification(x)
+
+    def recv(self):
+        if self.__id_recvd:
+            return self.recv_packet()
+        else:
+            return self.recv_identification()
 
 if __name__ == '__main__':
     class FakeSocket(object):
