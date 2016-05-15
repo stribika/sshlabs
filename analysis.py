@@ -151,9 +151,9 @@ def analyze_dh_groups(dh_groups):
     for group in dh_groups:
         size = math.ceil(math.log(group.prime, 2))
         if size <= 2**10:
-            issues.append(Severity.error, "small DH group", str(size) + " bits", group)
+            issues.append(Issue(Severity.error, "small DH group", str(size) + " bits", group))
         elif size <= 2**10 + 2**9:
-            issues.append(Severity.warning, "small DH group", str(size) + " bits", group)
+            issues.append(Issue(Severity.warning, "small DH group", str(size) + " bits", group))
 
     ( input_fd, input_name ) = tempfile.mkstemp()
 
