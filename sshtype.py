@@ -1,3 +1,4 @@
+import binascii
 import struct
 
 class Bytes(object):
@@ -9,6 +10,8 @@ class Bytes(object):
         return ( data[self.length:], data[:self.length] )
     def to_bytes(self, value):
         return value
+    def to_str(self, value):
+        return binascii.hexlify(value).decode("ASCII")
 
 class UInt32(object):
     def __init__(self, name=None, default=None):
@@ -18,6 +21,8 @@ class UInt32(object):
         return ( data[4:], struct.unpack(">L", data[:4])[0] )
     def to_bytes(self, value):
         return struct.pack(">L", value)
+    def to_str(self, value):
+        return str(value)
 
 if __name__ == "__main__":
     def test_uint32():
@@ -35,6 +40,8 @@ class String(object):
         return ( data[length:], data[:length] )
     def to_bytes(self, value):
         return UInt32().to_bytes(len(value)) + value
+    def to_str(self, value):
+        return binascii.hexlify(value).decode("ASCII")
 
 class MPInt(object):
     def __init__(self, name=None, default=None):
@@ -63,6 +70,8 @@ class MPInt(object):
         if value == 0 and (data[0] & 0x80):
             data = b"\x00" + data
         return String().to_bytes(data)
+    def to_str(self, value):
+        return hex(value)
 
 class NameList(object):
     def __init__(self, name=None, default=None):
@@ -73,6 +82,8 @@ class NameList(object):
         return ( data, string.decode("ASCII").split(",") )
     def to_bytes(self, value):
         return String().to_bytes(",".join(value).encode("ASCII"))
+    def to_str(self, value):
+        return ",".join(value)
 
 class Boolean(object):
     def __init__(self, name=None, default=None):
@@ -82,3 +93,5 @@ class Boolean(object):
         return ( data[1:], data[0] != 0 )
     def to_bytes(self, value):
         return b'\x01' if value else b'\x00'
+    def to_str(self, value):
+        return str(value)

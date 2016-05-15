@@ -72,7 +72,7 @@ class SSHMessage(object):
     def __str__(self):
         return "{0}({1})".format(
             type(self).__name__,
-            ", ".join([ str(s.name) + "=" + str(self.__values[s.name]) for s in self.__structure ])
+            ", ".join([ s.name + "=" + s.to_str(self.__values[s.name]) for s in self.__structure ])
         )
 
     def from_packet(self, packet):
@@ -163,10 +163,16 @@ class DHGEXGroup(SSHMessage):
             **kwargs
         )
 
-    def __str__(self):
-        return "DHGEXGoup(prime={0}, generator={1})".format(hex(self.prime), hex(self.generator))
-
 class DHGEXInit(SSHMessage):
     def __init__(self, **kwargs):
         super(type(self), self).__init__(SSH_MSG_KEX_DH_GEX_INIT, MPInt("e"), **kwargs)
 
+class DHGEXReply(SSHMessage):
+    def __init__(self, **kwargs):
+        super(type(self), self).__init__(
+            SSH_MSG_KEX_DH_GEX_REPLY,
+            String("server_public_key"),
+            MPInt("f"),
+            String("signature"),
+            **kwargs
+        )

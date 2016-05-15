@@ -106,7 +106,9 @@ def scan(addr, dh_group_size=1024, quick=False):
             dh_secret = csprng.randint(0, dh_gex_group.prime - 1)
             dh_public = pow(dh_gex_group.generator, dh_secret, dh_gex_group.prime)
             ssh_server.send(sshmessage.DHGEXInit(e=dh_public).to_packet())
-            print(ssh_server.recv())
+            dh_gex_reply = sshmessage.DHGEXReply(packet=ssh_server.recv())
+            shared_secret = pow(dh_gex_reply.f, dh_secret, dh_gex_group.prime)
+            print(shared_secret)
 
         return result
     finally:
