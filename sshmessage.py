@@ -5,8 +5,8 @@ remotely secure. Nothing is verified, nothing is random. DO NOT USE.
 
 import struct
 
-import sshtransport
-import sshtype
+from sshtransport import BinaryPacket
+from sshtype import *
 
 SSH_MSG_KEXINIT                = 20
 SSH_MSG_KEX_DH_GEX_REQUEST_OLD = 30
@@ -23,66 +23,100 @@ def message_from_packet(binpkt):
     }
     return message_types[binpkt.payload[0]](packet=binpkt)
 
-class KexInit(object):
-    def __init__(self, **kwargs):
-        if "packet" in kwargs:
-            self.__parse(kwargs["packet"].payload)
-        else:
-            self.cookie                     = kwargs.get("cookie", b"\x00" * 16)
-            self.kex_algorithms             = kwargs.get("kex_algorithms", [])
-            self.server_host_key_algorithms = kwargs.get("server_host_key_algorithms", [])
-            self.encryption_algorithms_c2s  = kwargs.get("encryption_algorithms_c2s", [])
-            self.encryption_algorithms_s2c  = kwargs.get("encryption_algorithms_s2c", [])
-            self.mac_algorithms_c2s         = kwargs.get("mac_algorithms_c2s", [])
-            self.mac_algorithms_s2c         = kwargs.get("mac_algorithms_s2c", [])
-            self.compression_algorithms_c2s = kwargs.get("compression_algorithms_c2s", [])
-            self.compression_algorithms_s2c = kwargs.get("compression_algorithms_s2c", [])
-            self.languages_c2s              = kwargs.get("languages_c2s", [])
-            self.languages_s2c              = kwargs.get("languages_s2c", [])
-            self.first_kex_packet_follows   = kwargs.get("first_kex_packet_follows", False)
-            self.reserved                   = kwargs.get("reserved", 0)
+class SSHMessage(object):
+    def __init__(self, message_type, *args, **kwargs):
+        object.__setattr__(self, "_SSHMessage__message_type", message_type)
+        object.__setattr__(self, "_SSHMessage__structure",    args)
+        object.__setattr__(self, "_SSHMessage__values",       {})
 
-    def __parse(self, payload):
-        ( msg_type, self.cookie ) = struct.unpack(">B16s", payload[:17])
-    
-        if msg_type != SSH_MSG_KEXINIT:
-            raise Exception("SSH_MSG_KEXINIT expected")
-    
-        payload = payload[17:]
-        ( payload, self.kex_algorithms ) = sshtype.parse_name_list(payload)
-        ( payload, self.server_host_key_algorithms ) = sshtype.parse_name_list(payload)
-        ( payload, self.encryption_algorithms_c2s ) = sshtype.parse_name_list(payload)
-        ( payload, self.encryption_algorithms_s2c ) = sshtype.parse_name_list(payload)
-        ( payload, self.mac_algorithms_c2s ) = sshtype.parse_name_list(payload)
-        ( payload, self.mac_algorithms_s2c ) = sshtype.parse_name_list(payload)
-        ( payload, self.compression_algorithms_c2s ) = sshtype.parse_name_list(payload)
-        ( payload, self.compression_algorithms_s2c ) = sshtype.parse_name_list(payload)
-        ( payload, self.languages_c2s ) = sshtype.parse_name_list(payload)
-        ( payload, self.languages_s2c ) = sshtype.parse_name_list(payload)
-        ( payload, self.first_kex_packet_follows ) = sshtype.parse_boolean(payload)
-        ( payload, self.reserved ) = sshtype.parse_uint32(payload)
-    
-        if self.reserved != 0:
-            print("WARNING! Reserved field not zero.")
-        
-        if len(payload) > 0:
-            print("WARNING! Extra bytes after SSH_MSG_KEXINIT.")
+        for arg in args:
+            self.__values[arg.name] = arg.default
+
+        if "packet" in kwargs:
+            self.from_packet(kwargs["packet"])
+        else:
+            kwargs_set = set(kwargs)
+            valid_set = set([ s.name for s in self.__structure ])
+            
+            if not kwargs_set.issubset(valid_set):
+                raise TypeError(
+                    "unexpected arguments: " + ", ".join(kwargs_set.difference(valid_set))
+                )
+
+            self.__values.update(kwargs)
+
+    def __getattr__(self, name):
+        if name in self.__values:
+            return self.__values[name]
+        else:
+            raise AttributeError("'{0}' object has no attribute '{1}'".format(
+                type(self).__name__,
+                name
+            ))
+
+    def __setattr__(self, name, value):
+        if name in self.__values:
+            self.__values[name] = value
+        else:
+            raise AttributeError("'{0}' object has no attribute '{1}'".format(
+                type(self).__name__,
+                name
+            ))
+
+    def __eq__(self, value):
+        return type(self) == type(value) and self.__values == value.__values
+
+    def __hash__(self):
+        return hash(( type(self), frozenset(self.__values.items()) ))
+
+    def __str__(self):
+        return "{0}({1})".format(
+            type(self).__name__,
+            ", ".join([ str(s.name) + "=" + str(self.__values[s.name]) for s in self.__structure ])
+        )
+
+    def from_packet(self, packet):
+        data = packet.payload
+
+        if data[0] != self.__message_type:
+            raise RuntimeError("invalid type {0}, expected {1}".format(
+                data[0],
+                self.__message_type
+            ))
+
+        data = data[1:]
+
+        for s in self.__structure:
+            ( data, value ) = s.from_bytes(data)
+            self.__values[s.name] = value
 
     def to_packet(self):
-        payload = struct.pack(">B16s", SSH_MSG_KEXINIT, self.cookie)
-        payload += sshtype.name_list_bytes(self.kex_algorithms)
-        payload += sshtype.name_list_bytes(self.server_host_key_algorithms)
-        payload += sshtype.name_list_bytes(self.encryption_algorithms_c2s)
-        payload += sshtype.name_list_bytes(self.encryption_algorithms_s2c)
-        payload += sshtype.name_list_bytes(self.mac_algorithms_c2s)
-        payload += sshtype.name_list_bytes(self.mac_algorithms_s2c)
-        payload += sshtype.name_list_bytes(self.compression_algorithms_c2s)
-        payload += sshtype.name_list_bytes(self.compression_algorithms_s2c)
-        payload += sshtype.name_list_bytes(self.languages_c2s)
-        payload += sshtype.name_list_bytes(self.languages_s2c)
-        payload += sshtype.boolean_bytes(self.first_kex_packet_follows)
-        payload += sshtype.uint32_bytes(self.reserved)
-        return sshtransport.BinaryPacket(payload=payload)
+        data = bytes([ self.__message_type ])
+
+        for s in self.__structure:
+            data += s.to_bytes(self.__values[s.name])
+
+        return BinaryPacket(payload=data)
+
+class KexInit(SSHMessage):
+    def __init__(self, **kwargs):
+        super(type(self), self).__init__(
+            SSH_MSG_KEXINIT,
+            Bytes(16, "cookie", b"\x00" * 16),
+            NameList("kex_algorithms", []),
+            NameList("server_host_key_algorithms", []),
+            NameList("encryption_algorithms_c2s", []),
+            NameList("encryption_algorithms_s2c", []),
+            NameList("mac_algorithms_c2s", []),
+            NameList("mac_algorithms_s2c", []),
+            NameList("compression_algorithms_c2s", []),
+            NameList("compression_algorithms_s2c", []),
+            NameList("languages_c2s", []),
+            NameList("languages_s2c", []),
+            Boolean("first_kex_packet_follows", False),
+            UInt32("reserved", 0),
+            **kwargs
+        )
 
     def optimal_response(self):
         return KexInit(
@@ -110,57 +144,29 @@ class KexInit(object):
             strlist("MAC algorithms (server to client)", self.mac_algorithms_s2c),
         ])
 
-class DHGEXRequest(object):
+class DHGEXRequest(SSHMessage):
     def __init__(self, **kwargs):
-        if "packet" in kwargs:
-            self.__parse(kwargs["packet"].payload)
-        else:
-            self.min = kwargs.get("min", 1024)
-            self.n   = kwargs["n"] 
-            self.max = kwargs.get("max", 8192)
+        super(type(self), self).__init__(
+            SSH_MSG_KEX_DH_GEX_REQUEST,
+            UInt32("min", 1024),
+            UInt32("n"),
+            UInt32("max", 8192),
+            **kwargs
+        )
 
-    def to_packet(self):
-        payload = struct.pack(">BLLL", SSH_MSG_KEX_DH_GEX_REQUEST, self.min, self.n, self.max)
-        return sshtransport.BinaryPacket(payload=payload)
-
-class DHGEXGroup(object):
+class DHGEXGroup(SSHMessage):
     def __init__(self, **kwargs):
-        if "packet" in kwargs:
-            self.__parse(kwargs["packet"].payload)
-        else:
-            self.prime     = kwargs["prime"]
-            self.generator = kwargs["generator"]
-
-    def __parse(self, payload):
-        msg_type = struct.unpack(">B", payload[:1])[0]
-        payload = payload[1:]
-
-        if msg_type != SSH_MSG_KEX_DH_GEX_GROUP:
-            raise Exception("SSH_MSG_KEX_DH_GEX_GROUP expected")
-    
-        ( payload, self.prime ) = sshtype.parse_mpint(payload)
-        ( payload, self.generator ) = sshtype.parse_mpint(payload)
-
-        if len(payload) > 0:
-            print("WARNING! Extra bytes after SSH_MSG_KEXINIT.")
-    
-    def __eq__(self, value):
-        return type(self) == type(value) and self.prime == value.prime and self.generator == value.generator
-
-    def __hash__(self):
-        return hash((type(self), self.prime, self.generator))
+        super(type(self), self).__init__(
+            SSH_MSG_KEX_DH_GEX_GROUP,
+            MPInt("prime"),
+            MPInt("generator"),
+            **kwargs
+        )
 
     def __str__(self):
         return "DHGEXGoup(prime={0}, generator={1})".format(hex(self.prime), hex(self.generator))
 
-class DHGEXInit(object):
+class DHGEXInit(SSHMessage):
     def __init__(self, **kwargs):
-        if "packet" in kwargs:
-            self.__parse(kwargs["packet"].payload)
-        else:
-            self.e = kwargs["e"]
+        super(type(self), self).__init__(SSH_MSG_KEX_DH_GEX_INIT, MPInt("e"), **kwargs)
 
-    def to_packet(self):
-        payload = struct.pack(">B", SSH_MSG_KEX_DH_GEX_INIT) + sshtype.mpint_bytes(self.e)
-        return sshtransport.BinaryPacket(payload=payload)
-        
