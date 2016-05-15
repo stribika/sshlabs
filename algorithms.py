@@ -1,91 +1,124 @@
-class WARN(object):
-    def __init__(self, msg, **kwargs):
-        self.msg = msg
-        self.only_with = kwargs.get('only_with')
+import enum
 
-WEAK_CIPHER      = WARN('Weak cipher')
-WEAK_HASH        = WARN('Weak hash')
-SMALL_MODULUS    = WARN('Small modulus')
-SMALL_KEY_SIZE   = WARN('Small key size')
-SMALL_TAG_SIZE   = WARN('Small tag size')
-SMALL_BLOCK_SIZE = WARN('Small block size')
-UNSAFE_CURVE     = WARN('Elliptic curve does not meet SafeCurves requirements')
-RANDOM_SIGNATURE = WARN('A weak RNG could reveal your secret key')
-CBC_MODE         = WARN('CBC mode', only_with='Encrypt-and-MAC')
-ENCRYPT_AND_MAC  = WARN('Encrypt-and-MAC', only_with='CBC mode')
-PLAINTEXT        = WARN('Holy shit, plaintext')
+class Severity(enum.IntEnum):
+    info     = 0 # Problem with the scanner
+    notice   = 1 # Speculative weakness
+    warning  = 2 # Theoretical weakness
+    error    = 3 # Expensive attack
+    critical = 4 # Cheap attack
 
-KEX_ALGORITHMS = {
-    'curve25519-sha256@libssh.org':         None,
-    'diffie-hellman-group-exchange-sha256': None,
+class Issue(object):
+    def __init__(self, severity, what, *args):
+        self.severity = severity
+        self.what     = what
+        self.args     = args
 
-    'diffie-hellman-group-exchange-sha1': WEAK_HASH,
-    'diffie-hellman-group14-sha1':        WEAK_HASH,
-    'ecdh-sha2-nistp521':                 UNSAFE_CURVE,
-    'ecdh-sha2-nistp384':                 UNSAFE_CURVE,
-    'ecdh-sha2-nistp256':                 UNSAFE_CURVE,
-    'diffie-hellman-group1-sha1':         [ SMALL_MODULUS, WEAK_HASH ],
+    def __str__(self):
+        return "{0}! {1}: {2}".format(
+            self.severity.name.upper(),
+            self.what,
+            ", ".join([ str(arg) for arg in self.args ])
+        )
+
+class CipherMode(enum.IntEnum):
+    CBC    = 0
+    STREAM = 1 # or CTR
+    AEAD   = 2
+
+class Cipher(object):
+    def __init__(self, mode, *args):
+        self.mode = mode
+        self.issues = args
+
+class MACMode(enum.IntEnum):
+    EAM = 0
+    ETM = 1
+
+class MAC(object):
+    def __init__(self, mode, *args):
+        self.mode = mode
+        self.issues = args
+
+known_kex_algorithms = {
+    "curve25519-sha256@libssh.org": [],
+    "diffie-hellman-group1-sha1": [
+        Issue(Severity.error,   "small DH group", "1024 bits", "diffie-hellman-group1-sha1"),
+        Issue(Severity.warning, "weak key exchange hash", "diffie-hellman-group1-sha1" ),
+    ],
+    "diffie-hellman-group14-sha1": [
+        Issue(Severity.warning, "weak key exchange hash", "diffie-hellman-group14-sha1")
+    ],
+    "diffie-hellman-group14-sha256": [],
+    "diffie-hellman-group15-sha256": [],
+    "diffie-hellman-group16-sha256": [],
+    "diffie-hellman-group-exchange-sha1": [
+        Issue(Severity.warning, "weak key exchange hash", "diffie-hellman-group-exchange-sha1" )
+    ],
+    "diffie-hellman-group-exchange-sha256": [],
+    "ecdh-sha2-nistp256": [
+        Issue(Severity.notice, "unsafe elliptic curve", "ecdh-sha2-nistp256")
+    ],
+    "ecdh-sha2-nistp384": [
+        Issue(Severity.notice, "unsafe elliptic curve", "ecdh-sha2-nistp384")
+    ],
+    "ecdh-sha2-nistp521": [],
 }
 
-HOST_KEY_ALGORITHMS = {
-    'ssh-ed25519-cert-v01@openssh.com': None,
-    'ssh-rsa-cert-v01@openssh.com':     None,
-    'ssh-rsa-cert-v00@openssh.com':     None,
-    'ssh-ed25519':                      None,
-    'ssh-rsa':                          None,
- 
-    'ecdsa-sha2-nistp521-cert-v01@openssh.com': [ RANDOM_SIGNATURE, UNSAFE_CURVE ],
-    'ecdsa-sha2-nistp384-cert-v01@openssh.com': [ RANDOM_SIGNATURE, UNSAFE_CURVE ],
-    'ecdsa-sha2-nistp256-cert-v01@openssh.com': [ RANDOM_SIGNATURE, UNSAFE_CURVE ],
-    'ecdsa-sha2-nistp521':                      [ RANDOM_SIGNATURE, UNSAFE_CURVE ],
-    'ecdsa-sha2-nistp384':                      [ RANDOM_SIGNATURE, UNSAFE_CURVE ],
-    'ecdsa-sha2-nistp256':                      [ RANDOM_SIGNATURE, UNSAFE_CURVE ],
-    'ssh-dss-cert-v01@openssh.com':             [ SMALL_MODULUS, RANDOM_SIGNATURE ],
-    'ssh-dss-cert-v00@openssh.com':             [ SMALL_MODULUS, RANDOM_SIGNATURE ],
-    'ssh-dss':                                  [ SMALL_MODULUS, RANDOM_SIGNATURE ],
+known_ciphers = {
+    "3des-cbc": Cipher(CipherMode.CBC,
+        Issue(Severity.warning, "small cipher block size", "3des-cbc")),
+    "aes128-cbc": Cipher(CipherMode.CBC),
+    "aes192-cbc": Cipher(CipherMode.CBC),
+    "aes256-cbc": Cipher(CipherMode.CBC),
+    "aes128-ctr": Cipher(CipherMode.STREAM),
+    "aes192-ctr": Cipher(CipherMode.STREAM),
+    "aes256-ctr": Cipher(CipherMode.STREAM),
+    "aes128-gcm@openssh.com": Cipher(CipherMode.AEAD),
+    "aes256-gcm@openssh.com": Cipher(CipherMode.AEAD),
+    "arcfour": Cipher(CipherMode.STREAM,
+        Issue(Severity.error, "weak cipher algorithm", "arcfour")),
+    "arcfour128": Cipher(CipherMode.STREAM,
+        Issue(Severity.error, "weak cipher algorithm", "arcfour128")),
+    "arcfour256": Cipher(CipherMode.STREAM,
+        Issue(Severity.error, "weak cipher algorithm", "arcfour256")),
+    "blowfish-cbc": Cipher(CipherMode.CBC,
+        Issue(Severity.warning, "small cipher block size", "blowfish-cbc")),
+    "cast128-cbc": Cipher(CipherMode.CBC,
+        Issue(Severity.warning, "small cipher block size", "cast128-cbc")),
+    "chacha20-poly1305@openssh.com": Cipher(CipherMode.AEAD),
 }
 
-CIPHERS = {
-    'chacha20-poly1305@openssh.com': None,
-    'aes256-gcm@openssh.com':        None,
-    'aes128-gcm@openssh.com':        None,
-    'aes256-ctr':                    None,
-    'aes192-ctr':                    None,
-    'aes128-ctr':                    None,
-    
-    'aes256-cbc':                  CBC_MODE,
-    'rijndael-cbc@lysator.liu.se': CBC_MODE,
-    'aes192-cbc':                  CBC_MODE,
-    'aes128-cbc':                  CBC_MODE,
-
-    'blowfish-cbc':                [ SMALL_BLOCK_SIZE, CBC_MODE ],
-    'cast128-cbc':                 [ SMALL_BLOCK_SIZE, CBC_MODE ],
-    '3des-cbc':                    [ WEAK_CIPHER, SMALL_BLOCK_SIZE, CBC_MODE ],
-    'arcfour256':                  WEAK_CIPHER,
-    'arcfour128':                  WEAK_CIPHER,
-    'arcfour':                     [ WEAK_CIPHER, SMALL_KEY_SIZE ],
-    'none':                        PLAINTEXT,
-}
-
-MACS = {
-    'hmac-sha2-512-etm@openssh.com':  None,
-    'hmac-sha2-256-etm@openssh.com':  None,
-    'umac-128-etm@openssh.com':       None,
-    'hmac-ripemd160-etm@openssh.com': None,
-
-    'hmac-sha2-512':                  ENCRYPT_AND_MAC,
-    'hmac-sha2-256':                  ENCRYPT_AND_MAC,
-    'hmac-ripemd160':                 ENCRYPT_AND_MAC,
-    'umac-128@openssh.com':           ENCRYPT_AND_MAC,
-
-    'umac-64-etm@openssh.com':      SMALL_TAG_SIZE,
-    'umac-64@openssh.com':          [ ENCRYPT_AND_MAC, SMALL_TAG_SIZE ],
-    'hmac-sha1-etm@openssh.com':    WEAK_HASH,
-    'hmac-sha1':                    [ WEAK_HASH, ENCRYPT_AND_MAC ],
-    'hmac-sha1-96-etm@openssh.com': WEAK_HASH,
-    'hmac-sha1-96':                 [ WEAK_HASH, ENCRYPT_AND_MAC ],
-    'hmac-md5-etm@openssh.com':     WEAK_HASH,
-    'hmac-md5-96-etm@openssh.com':  WEAK_HASH,
-    'hmac-md5':                     [ WEAK_HASH, ENCRYPT_AND_MAC ],
-    'hmac-md5-96':                  [ WEAK_HASH, ENCRYPT_AND_MAC ],
+known_macs = {
+    "hmac-md5": MAC(MACMode.EAM,
+        Issue(Severity.notice, "weak HMAC hash", "hmac-md5")),
+    "hmac-md5-96": MAC(MACMode.EAM,
+        Issue(Severity.notice, "weak HMAC hash", "hmac-md5-96"),
+        Issue(Severity.notice, "small MAC tag", "96 bits", "hmac-md5-96")),
+    "hmac-ripemd160": MAC(MACMode.EAM),
+    "hmac-sha1": MAC(MACMode.EAM,
+        Issue(Severity.notice, "weak HMAC hash", "hmac-sha1")),
+    "hmac-sha1-96": MAC(MACMode.EAM,
+        Issue(Severity.notice, "weak HMAC hash", "hmac-sha1-96"),
+        Issue(Severity.notice, "small MAC tag", "96 bits", "hmac-sha1-96")),
+    "hmac-sha2-256": MAC(MACMode.EAM),
+    "hmac-sha2-512": MAC(MACMode.EAM),
+    "umac-64@openssh.com": MAC(MACMode.EAM,
+        Issue(Severity.notice, "small MAC tag", "64 bits", "umac-64@openssh.com")),
+    "umac-128@openssh.com": MAC(MACMode.EAM),
+    "hmac-md5-etm@openssh.com": MAC(MACMode.ETM,
+        Issue(Severity.notice, "weak HMAC hash", "hmac-md5-etm@openssh.com")),
+    "hmac-md5-96-etm@openssh.com": MAC(MACMode.ETM,
+        Issue(Severity.notice, "weak HMAC hash", "hmac-md5-96-etm@openssh.com"),
+        Issue(Severity.notice, "small MAC tag", "96 bits", "hmac-md5-96-etm@openssh.com")),
+    "hmac-ripemd160-etm@openssh.com": MAC(MACMode.ETM),
+    "hmac-sha1-etm@openssh.com": MAC(MACMode.ETM,
+        Issue(Severity.notice, "weak HMAC hash", "hmac-sha1-etm@openssh.com")),
+    "hmac-sha1-96-etm@openssh.com": MAC(MACMode.ETM,
+        Issue(Severity.notice, "weak HMAC hash", "hmac-sha1-96-etm@openssh.com"),
+        Issue(Severity.notice, "small MAC tag", "96 bits", "hmac-sha1-96-etm@openssh.com")),
+    "hmac-sha2-256-etm@openssh.com": MAC(MACMode.ETM),
+    "hmac-sha2-512-etm@openssh.com": MAC(MACMode.ETM),
+    "umac-64-etm@openssh.com": MAC(MACMode.ETM,
+        Issue(Severity.notice, "small MAC tag", "64 bits", "umac-64-etm@openssh.com")),
+    "umac-128-etm@openssh.com": MAC(MACMode.ETM),
 }

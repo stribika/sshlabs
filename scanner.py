@@ -6,6 +6,7 @@ import socket
 import struct
 import sys
 
+import analysis
 from sshtransport import *
 import sshmessage
 
@@ -16,7 +17,7 @@ class ScanResult(object):
         self.identification_string = None
         self.kex_init = None
         self.dh_gex_groups = set()
-        self.issues = set()
+        self.issues = []
 
 
 def main():
@@ -26,9 +27,12 @@ def main():
             result = scan(addr)
             print(result.identification_string)
             print(result.kex_init)
+            result.issues += analysis.analyze_kex_init(result.kex_init)
             if supports_dh_gex(result.kex_init):
-                collect_dh_groups(result, addr)
-            print("\n".join([ str(grp) for grp in result.dh_gex_groups ]))
+#                collect_dh_groups(result, addr)
+                result.issues += analysis.analyze_dh_groups(result.dh_gex_groups)
+            print("\n".join([ str(issue) for issue in result.issues ]))
+            print("score", analysis.score(result.issues))
             print("Finished scanning {}:{}\n".format(*addr))
 #        except Exception as ex:
 #            print("ERROR!", "Unable to scan {}:{}".format(*addr), ex)
@@ -48,7 +52,6 @@ def collect_dh_groups(result, addr):
                 known_count = len(result.dh_gex_groups)
                 no_new_count = 0
             probability_of_more = (known_count / (known_count + 1))**no_new_count
-            print("probability of more DH groups", probability_of_more)
 
 def addresses(args):
     for arg in args:
