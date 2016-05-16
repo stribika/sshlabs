@@ -23,21 +23,20 @@ def message_from_packet(binpkt):
     }
     return message_types[binpkt.payload[0]](packet=binpkt)
 
-class SSHMessage(object):
-    def __init__(self, message_type, *args, **kwargs):
-        object.__setattr__(self, "_SSHMessage__message_type", message_type)
-        object.__setattr__(self, "_SSHMessage__structure",    args)
-        object.__setattr__(self, "_SSHMessage__values",       {})
+class SSHStruct(object):
+    def __init__(self, parse_attr, *args, **kwargs):
+        object.__setattr__(self, "_SSHStruct__structure", args)
+        object.__setattr__(self, "_SSHStruct__values",    {})
 
         for arg in args:
             self.__values[arg.name] = arg.default
 
-        if "packet" in kwargs:
-            self.from_packet(kwargs["packet"])
+        if parse_attr in kwargs:
+            self.parse(kwargs[parse_attr])
         else:
             kwargs_set = set(kwargs)
             valid_set = set([ s.name for s in self.__structure ])
-            
+        
             if not kwargs_set.issubset(valid_set):
                 raise TypeError(
                     "unexpected arguments: " + ", ".join(kwargs_set.difference(valid_set))
@@ -75,6 +74,30 @@ class SSHMessage(object):
             ", ".join([ s.name + "=" + s.to_str(self.__values[s.name]) for s in self.__structure ])
         )
 
+    def parse(self, x):
+        self.from_bytes(x)
+
+    def from_bytes(self, data):
+        for s in self.__structure:
+            ( data, value ) = s.from_bytes(data)
+            self.__values[s.name] = value
+
+    def to_bytes(self):
+        data = b""
+        
+        for s in self.__structure:
+            data += s.to_bytes(self.__values[s.name])
+
+        return data
+
+class SSHMessage(SSHStruct):
+    def __init__(self, message_type, *args, **kwargs):
+        object.__setattr__(self, "_SSHMessage__message_type", message_type)
+        super(SSHMessage, self).__init__("packet", *args, **kwargs)
+
+    def parse(self, x):
+        self.from_packet(x)
+
     def from_packet(self, packet):
         data = packet.payload
 
@@ -84,18 +107,11 @@ class SSHMessage(object):
                 self.__message_type
             ))
 
-        data = data[1:]
-
-        for s in self.__structure:
-            ( data, value ) = s.from_bytes(data)
-            self.__values[s.name] = value
+        self.from_bytes(data[1:])
 
     def to_packet(self):
         data = bytes([ self.__message_type ])
-
-        for s in self.__structure:
-            data += s.to_bytes(self.__values[s.name])
-
+        data += self.to_bytes()
         return BinaryPacket(payload=data)
 
 class KexInit(SSHMessage):
@@ -169,10 +185,25 @@ class DHGEXInit(SSHMessage):
 
 class DHGEXReply(SSHMessage):
     def __init__(self, **kwargs):
-        super(type(self), self).__init__(
+        super(DHGEXReply, self).__init__(
             SSH_MSG_KEX_DH_GEX_REPLY,
             String("server_public_key"),
             MPInt("f"),
             String("signature"),
             **kwargs
         )
+
+class RSAPublicKey(SSHStruct):
+    def __init__(self, **kwargs):
+        super(RSAPublicKey, self).__init__(
+            "data",
+            String("key_type"),
+            MPInt("public_exponent"),
+            MPInt("modulus"),
+            **kwargs
+        )
+
+        if self.key_type != b"ssh-rsa":
+            raise RuntimeError("invalid key type {0}, expected 'ssh-rsa'".format(
+                self.key_type.decode("ASCII"),
+            ))

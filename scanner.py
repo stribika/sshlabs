@@ -1,5 +1,6 @@
 #!/usr/bin/python3 -O
 
+import math
 import netaddr
 import random
 import socket
@@ -124,7 +125,8 @@ def scan(addr, dh_group_size=1024, quick=False):
             ssh_server.send(sshmessage.DHGEXInit(e=dh_public).to_packet())
             dh_gex_reply = sshmessage.DHGEXReply(packet=ssh_server.recv())
             shared_secret = pow(dh_gex_reply.f, dh_secret, dh_gex_group.prime)
-            print(dh_gex_reply.server_public_key)
+            server_public_key = sshmessage.RSAPublicKey(data=dh_gex_reply.server_public_key)
+            print(math.ceil(math.log(server_public_key.modulus, 2)))
 
         # TODO get host public key from hosts that don't support DH GEX
 
