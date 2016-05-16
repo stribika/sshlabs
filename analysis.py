@@ -74,7 +74,7 @@ def analyze_kex_init(kex_init):
 
 def is_downgrade_resistant(issues):
     for issue in issues:
-        if issue.severity >= Severity.warning and issue.what in [ "weak key exchange hash", "small DH group" ]:
+        if issue.severity >= Severity.warning and issue.what == "weak key exchange hash":
             return False
     return True
 
