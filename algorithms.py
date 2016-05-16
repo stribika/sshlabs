@@ -4,8 +4,8 @@ class Severity(enum.IntEnum):
     info     = 0 # Problem with the scanner
     notice   = 1 # Speculative weakness
     warning  = 2 # Theoretical weakness
-    error    = 3 # Expensive attack
-    critical = 4 # Cheap attack
+    error    = 4 # Expensive attack
+    critical = 8 # Cheap attack
 
 class Issue(object):
     def __init__(self, severity, what, *args):
