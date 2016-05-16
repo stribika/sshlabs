@@ -76,6 +76,9 @@ def addresses(args):
 
 DH_GEX_SHA1 = "diffie-hellman-group-exchange-sha1"
 DH_GEX_SHA256 = "diffie-hellman-group-exchange-sha256"
+HOST_KEY_RSA_SHA1 = "ssh-rsa"
+HOST_KEY_RSA_SHA256 = "rsa-sha2-256"
+HOST_KEY_RSA_SHA512 = "rsa-sha2-512"
 
 def scan(addr, dh_group_size=1024, quick=False):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -100,8 +103,18 @@ def scan(addr, dh_group_size=1024, quick=False):
             print("discarding first kex packet")
             ssh_server.recv()
 
+        
+        kex_init = result.kex_init.optimal_response()
+
+        if supports_rsa(result.kex_init):
+            kex_init.server_host_key_algorithms = [
+                HOST_KEY_RSA_SHA512,
+                HOST_KEY_RSA_SHA256,
+                HOST_KEY_RSA_SHA1
+            ]    
+
         if supports_dh_gex(result.kex_init):
-            dh_gex_group = get_dh_gex_group(ssh_server, result.kex_init, dh_group_size)
+            dh_gex_group = get_dh_gex_group(ssh_server, kex_init, dh_group_size)
             result.dh_gex_groups.add(dh_gex_group)
             # No need to do this again.
             if quick:
@@ -111,17 +124,22 @@ def scan(addr, dh_group_size=1024, quick=False):
             ssh_server.send(sshmessage.DHGEXInit(e=dh_public).to_packet())
             dh_gex_reply = sshmessage.DHGEXReply(packet=ssh_server.recv())
             shared_secret = pow(dh_gex_reply.f, dh_secret, dh_gex_group.prime)
-            print(shared_secret)
+            print(dh_gex_reply.server_public_key)
+
+        # TODO get host public key from hosts that don't support DH GEX
 
         return result
     finally:
         server.close()
 
+def supports_rsa(kex_init):
+    rsa = set([ HOST_KEY_RSA_SHA1, HOST_KEY_RSA_SHA256, HOST_KEY_RSA_SHA512 ])
+    return not rsa.isdisjoint(kex_init.server_host_key_algorithms)
+
 def supports_dh_gex(kex_init):
     return DH_GEX_SHA256 in kex_init.kex_algorithms or DH_GEX_SHA1 in kex_init.kex_algorithms
 
-def get_dh_gex_group(ssh_server, server_kex_init, dh_group_size):
-    kex_init = server_kex_init.optimal_response()
+def get_dh_gex_group(ssh_server, kex_init, dh_group_size):
     kex_init.kex_algorithms = [ DH_GEX_SHA256, DH_GEX_SHA1 ]
     ssh_server.send(kex_init.to_packet())
     dh_gex_request = sshmessage.DHGEXRequest(n=dh_group_size)
