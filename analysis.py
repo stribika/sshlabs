@@ -145,7 +145,7 @@ def analyze_kex_algorithms(kex_init):
 def analyze_host_key_algorithms(kex_init):
     return []
 
-def analyze_dh_groups(dh_groups):
+def analyze_dh_groups(dh_groups, fast):
     issues = []
 
     for group in dh_groups:
@@ -154,6 +154,9 @@ def analyze_dh_groups(dh_groups):
             issues.append(Issue(Severity.error, "small DH group", str(size) + " bits", group))
         elif size <= 2**10 + 2**9:
             issues.append(Issue(Severity.warning, "small DH group", str(size) + " bits", group))
+
+    if fast:
+        return issues
 
     ( input_fd, input_name ) = tempfile.mkstemp()
 

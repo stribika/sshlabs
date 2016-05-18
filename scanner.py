@@ -1,5 +1,6 @@
 #!/usr/bin/python3 -O
 
+import argparse
 import math
 import netaddr
 import random
@@ -18,11 +19,19 @@ class ScanResult(object):
         self.identification_string = None
         self.kex_init = None
         self.dh_gex_groups = set()
+        self.server_public_key = None
         self.issues = []
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="SSHLabs Scanner")
+    parser.add_argument("--fast", "-f", action="store_true")
+    ( args, addrs ) = parser.parse_known_args()
+    args.addresses = addrs
+    return args
 
 def main():
-    for addr in addresses(sys.argv[1:]):
+    args = parse_args()
+    for addr in addresses(args.addresses):
 #        try:
             print("Scanning {}:{}".format(*addr))
             result = scan(addr)
@@ -30,8 +39,8 @@ def main():
             print(result.kex_init)
             result.issues += analysis.analyze_kex_init(result.kex_init)
             if supports_dh_gex(result.kex_init):
-#                collect_dh_groups(result, addr)
-                result.issues += analysis.analyze_dh_groups(result.dh_gex_groups)
+                collect_dh_groups(result, addr)
+                result.issues += analysis.analyze_dh_groups(result.dh_gex_groups, args.fast)
             print("\n".join([ str(issue) for issue in result.issues ]))
             print("score", analysis.score(result.issues))
             print("Finished scanning {}:{}\n".format(*addr))
@@ -125,8 +134,11 @@ def scan(addr, dh_group_size=1024, quick=False):
             ssh_server.send(sshmessage.DHGEXInit(e=dh_public).to_packet())
             dh_gex_reply = sshmessage.DHGEXReply(packet=ssh_server.recv())
             shared_secret = pow(dh_gex_reply.f, dh_secret, dh_gex_group.prime)
-            server_public_key = sshmessage.RSAPublicKey(data=dh_gex_reply.server_public_key)
-            print(math.ceil(math.log(server_public_key.modulus, 2)))
+            
+            # TODO gather other things?
+
+            if supports_rsa(result.kex_init):
+                result.server_public_key = sshmessage.RSAPublicKey(data=dh_gex_reply.server_public_key)
 
         # TODO get host public key from hosts that don't support DH GEX
 
