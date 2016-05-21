@@ -141,38 +141,3 @@ class SSHSocket(object):
             return self.recv_packet()
         else:
             return self.recv_identification()
-
-if __name__ == '__main__':
-    class FakeSocket(object):
-        def __init__(self):
-            self.recv_buffer = b""
-            self.send_buffer = b""
-
-        def recv(self, n):
-            resp = self.recv_buffer[:n]
-            self.recv_buffer = self.recv_buffer[n:]
-            return resp
-
-        def send(self, x):
-            self.send_buffer += x
-
-    def test_idstr():
-        conn = FakeSocket()
-        conn.recv_buffer = b"SSH-2.00-SecureMcShellface_1.0\r\n"
-        idstr = IdentificationString(recvfrom=conn)
-        assert idstr.protoversion == "2.00"
-        assert idstr.softwareversion == "SecureMcShellface_1.0"
-        idstr.send(conn)
-        assert conn.send_buffer == b"SSH-2.00-SecureMcShellface_1.0\r\n"
-    test_idstr()
-
-    def test_binpkt():
-        conn = FakeSocket()
-        conn.recv_buffer = b"\x00\x00\x00\x14\x07Hello World!\x00\x00\x00\x00\x00\x00\x00"
-        binpkt = BinaryPacket(recvfrom=conn)
-        assert binpkt.payload == b"Hello World!"
-        assert binpkt.mac == b""
-        binpkt.send(conn)
-        assert conn.send_buffer == b"\x00\x00\x00\x14\x07Hello World!\x00\x00\x00\x00\x00\x00\x00"
-    test_binpkt()
-

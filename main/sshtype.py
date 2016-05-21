@@ -24,13 +24,6 @@ class UInt32(object):
     def to_str(self, value):
         return str(value)
 
-if __name__ == "__main__":
-    def test_uint32():
-        uint32 = UInt32()
-        assert (b"", 0x102) == uint32.from_bytes(b"\x00\x00\x01\x02")
-        assert b"\x00\x01\x02\x03" == uint32.to_bytes(0x10203)
-    test_uint32()
-
 class String(object):
     def __init__(self, name=None, default=None):
         self.name    = name
