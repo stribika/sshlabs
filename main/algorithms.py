@@ -39,29 +39,41 @@ class MAC(object):
         self.mode = mode
         self.issues = args
 
+KEX_DH_GEX_SHA1 = "diffie-hellman-group-exchange-sha1"
+KEX_DH_GEX_SHA256 = "diffie-hellman-group-exchange-sha256"
+KEX_DH_GROUP1_SHA1 = "diffie-hellman-group1-sha1"
+KEX_DH_GROUP14_SHA1 = "diffie-hellman-group14-sha1"
+KEX_DH_GROUP14_SHA256 = "diffie-hellman-group14-sha256"
+KEX_DH_GROUP15_SHA256 = "diffie-hellman-group15-sha256"
+KEX_DH_GROUP16_SHA256 = "diffie-hellman-group16-sha256"
+KEX_ECDH_CURVE25519_SHA256 = "curve25519-sha256@libssh.org"
+KEX_ECDH_NISTP256_SHA256 = "ecdh-sha2-nistp256"
+KEX_ECDH_NISTP384_SHA384 = "ecdh-sha2-nistp384"
+KEX_ECDH_NISTP521_SHA512 = "ecdh-sha2-nistp521"
+
 known_kex_algorithms = {
-    "curve25519-sha256@libssh.org": [],
-    "diffie-hellman-group1-sha1": [
-        Issue(Severity.error,   "small DH group", "1024 bits", "diffie-hellman-group1-sha1"),
-        Issue(Severity.warning, "weak key exchange hash", "diffie-hellman-group1-sha1" ),
+    KEX_ECDH_CURVE25519_SHA256: [],
+    KEX_DH_GROUP1_SHA1: [
+        Issue(Severity.error,   "small DH group", "1024 bits", KEX_DH_GROUP1_SHA1),
+        Issue(Severity.warning, "weak key exchange hash", KEX_DH_GROUP1_SHA1),
     ],
-    "diffie-hellman-group14-sha1": [
-        Issue(Severity.warning, "weak key exchange hash", "diffie-hellman-group14-sha1")
+    KEX_DH_GROUP14_SHA1: [
+        Issue(Severity.warning, "weak key exchange hash", KEX_DH_GROUP14_SHA1)
     ],
-    "diffie-hellman-group14-sha256": [],
-    "diffie-hellman-group15-sha256": [],
-    "diffie-hellman-group16-sha256": [],
-    "diffie-hellman-group-exchange-sha1": [
-        Issue(Severity.warning, "weak key exchange hash", "diffie-hellman-group-exchange-sha1" )
+    KEX_DH_GROUP14_SHA256: [],
+    KEX_DH_GROUP15_SHA256: [],
+    KEX_DH_GROUP16_SHA256: [],
+    KEX_DH_GEX_SHA1: [
+        Issue(Severity.warning, "weak key exchange hash", KEX_DH_GEX_SHA1)
     ],
-    "diffie-hellman-group-exchange-sha256": [],
-    "ecdh-sha2-nistp256": [
-        Issue(Severity.notice, "unsafe elliptic curve", "ecdh-sha2-nistp256")
+    KEX_DH_GEX_SHA256: [],
+    KEX_ECDH_NISTP256_SHA256: [
+        Issue(Severity.notice, "unsafe elliptic curve", KEX_ECDH_NISTP256_SHA256)
     ],
-    "ecdh-sha2-nistp384": [
-        Issue(Severity.notice, "unsafe elliptic curve", "ecdh-sha2-nistp384")
+    KEX_ECDH_NISTP384_SHA384: [
+        Issue(Severity.notice, "unsafe elliptic curve", KEX_ECDH_NISTP384_SHA384)
     ],
-    "ecdh-sha2-nistp521": [],
+    KEX_ECDH_NISTP521_SHA512: [],
 }
 
 known_ciphers = {
@@ -121,4 +133,14 @@ known_macs = {
     "umac-64-etm@openssh.com": MAC(MACMode.ETM,
         Issue(Severity.notice, "small MAC tag", "64 bits", "umac-64-etm@openssh.com")),
     "umac-128-etm@openssh.com": MAC(MACMode.ETM),
+}
+
+SIGN_RSA_SHA1 = "ssh-rsa"
+SIGN_RSA_SHA256 = "rsa-sha2-256"
+SIGN_RSA_SHA512 = "rsa-sha2-512"
+
+known_host_key_algorithms = {
+    SIGN_RSA_SHA1: [],
+    SIGN_RSA_SHA256: [],
+    SIGN_RSA_SHA512: [],
 }

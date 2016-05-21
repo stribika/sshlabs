@@ -8,6 +8,7 @@ import socket
 import struct
 import sys
 
+from algorithms import *
 import analysis
 from sshtransport import *
 import sshmessage
@@ -84,12 +85,6 @@ def addresses(args):
         else:
             yield ( host_or_cidr, port )
 
-DH_GEX_SHA1 = "diffie-hellman-group-exchange-sha1"
-DH_GEX_SHA256 = "diffie-hellman-group-exchange-sha256"
-HOST_KEY_RSA_SHA1 = "ssh-rsa"
-HOST_KEY_RSA_SHA256 = "rsa-sha2-256"
-HOST_KEY_RSA_SHA512 = "rsa-sha2-512"
-
 def scan(addr, dh_group_size=1024, quick=False):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -118,9 +113,9 @@ def scan(addr, dh_group_size=1024, quick=False):
 
         if supports_rsa(result.kex_init):
             kex_init.server_host_key_algorithms = [
-                HOST_KEY_RSA_SHA512,
-                HOST_KEY_RSA_SHA256,
-                HOST_KEY_RSA_SHA1
+                SIGN_RSA_SHA512,
+                SIGN_RSA_SHA256,
+                SIGN_RSA_SHA1
             ]    
 
         if supports_dh_gex(result.kex_init):
@@ -147,14 +142,14 @@ def scan(addr, dh_group_size=1024, quick=False):
         server.close()
 
 def supports_rsa(kex_init):
-    rsa = set([ HOST_KEY_RSA_SHA1, HOST_KEY_RSA_SHA256, HOST_KEY_RSA_SHA512 ])
+    rsa = set([ SIGN_RSA_SHA1, SIGN_RSA_SHA256, SIGN_RSA_SHA512 ])
     return not rsa.isdisjoint(kex_init.server_host_key_algorithms)
 
 def supports_dh_gex(kex_init):
-    return DH_GEX_SHA256 in kex_init.kex_algorithms or DH_GEX_SHA1 in kex_init.kex_algorithms
+    return KEX_DH_GEX_SHA256 in kex_init.kex_algorithms or KEX_DH_GEX_SHA1 in kex_init.kex_algorithms
 
 def get_dh_gex_group(ssh_server, kex_init, dh_group_size):
-    kex_init.kex_algorithms = [ DH_GEX_SHA256, DH_GEX_SHA1 ]
+    kex_init.kex_algorithms = [ KEX_DH_GEX_SHA256, KEX_DH_GEX_SHA1 ]
     ssh_server.send(kex_init.to_packet())
     dh_gex_request = sshmessage.DHGEXRequest(n=dh_group_size)
     ssh_server.send(dh_gex_request.to_packet())
