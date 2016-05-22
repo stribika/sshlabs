@@ -86,7 +86,7 @@ class TextOutput(object):
             print(issue.instructions)
 
     def print_final_score(self, score):
-        print("Final score for {}:{} is".format(host, port), score )
+        print("Final score for {}:{} is".format(self.host, self.port), score)
         self.host = None
         self.port = None
 
@@ -98,7 +98,7 @@ def parse_args():
     parser.add_argument("-d", "--details",      action="store_true", help="show detailed findings")
     parser.add_argument("-f", "--fast",         action="store_true", help="sacrifice accuracy for speed")
     parser.add_argument("-i", "--instructions", action="store_true", help="show instructions to fix (assuming UNIX and OpenSSH)")
-    parser.add_argument("-j", "--json",         action="store_true", help="show instructions to fix (assuming UNIX and OpenSSH)")
+    parser.add_argument("-j", "--json",         action="store_true", help="generate JSON output")
     ( args, addrs ) = parser.parse_known_args()
     args.addresses = addrs
     return args
