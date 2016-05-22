@@ -1,6 +1,7 @@
 #!/usr/bin/python3 -O
 
 import argparse
+import json
 import math
 import netaddr
 import random
@@ -23,30 +24,117 @@ class ScanResult(object):
         self.server_public_key = None
         self.issues = []
 
+class JSONOutput(object):
+    def begin(self):
+        self.first = True
+        sys.stdout.write("[")
+
+    def print_scan_start(self, host, port):
+        self.jsonobj = {
+            "host": host,
+            "port": port,
+            "issues": [],
+        }
+
+    def print_identification(self, id_str):
+        self.jsonobj["identification_string"] = id_str
+
+    def print_algorithms(self, kex_init):
+        self.jsonobj["kex_init"] = kex_init
+
+    def print_issue(self, issue, details, instructions):
+        if not details:
+            issue.details = None
+
+        if not instructions:
+            issue.instructions = None
+
+        self.jsonobj["issues"].append(issue)
+        
+    def print_final_score(self, score):
+        if not self.first:
+            sys.stdout.write(",")
+
+        self.first = False
+        self.jsonobj["score"] = score
+        json.dump(self.jsonobj, sys.stdout, default=lambda x: x.to_dict())
+
+    def end(self):
+        print("]")
+
+class TextOutput(object):
+    def begin(self): pass
+
+    def print_scan_start(self, host, port):
+        self.host = host
+        self.port = port
+        print("Scanning {}:{} ...".format(host, port))
+
+    def print_identification(self, idstr):
+        print(idstr)
+
+    def print_algorithms(self, kex_init):
+        print(kex_init)
+
+    def print_issue(self, issue, details, instructions):
+        print(issue)
+
+        if details:
+            print(issue.details)
+
+        if instructions:
+            print(issue.instructions)
+
+    def print_final_score(self, score):
+        print("Final score for {}:{} is".format(host, port), score )
+        self.host = None
+        self.port = None
+
+    def end(self): pass
+
 def parse_args():
     parser = argparse.ArgumentParser(description="SSHLabs Scanner")
-    parser.add_argument("--fast", "-f", action="store_true")
+    parser.add_argument("-a", "--algorithms",   action="store_true", help="show all supported algorithms")
+    parser.add_argument("-d", "--details",      action="store_true", help="show detailed findings")
+    parser.add_argument("-f", "--fast",         action="store_true", help="sacrifice accuracy for speed")
+    parser.add_argument("-i", "--instructions", action="store_true", help="show instructions to fix (assuming UNIX and OpenSSH)")
+    parser.add_argument("-j", "--json",         action="store_true", help="show instructions to fix (assuming UNIX and OpenSSH)")
     ( args, addrs ) = parser.parse_known_args()
     args.addresses = addrs
     return args
 
-def main():
-    args = parse_args()
+def main(args=None, output=None):
+    if not args:
+        args = parse_args()
+
+    if not output:
+        output = JSONOutput() if args.json else TextOutput()
+
+    output.begin()
+
     for addr in addresses(args.addresses):
 #        try:
-            print("Scanning {}:{}".format(*addr))
+            output.print_scan_start(addr[0], addr[1])
             result = scan(addr)
-            print(result.identification_string)
-            print(result.kex_init)
+            
+            if args.algorithms:
+                output.print_identification(result.identification_string)
+                output.print_algorithms(result.kex_init)
+            
             result.issues += analysis.analyze_kex_init(result.kex_init)
+            
             if supports_dh_gex(result.kex_init):
                 collect_dh_groups(result, addr)
                 result.issues += analysis.analyze_dh_groups(result.dh_gex_groups, args.fast)
-            print("\n".join([ str(issue) for issue in result.issues ]))
-            print("score", analysis.score(result.issues))
-            print("Finished scanning {}:{}\n".format(*addr))
+
+            for issue in result.issues:
+                output.print_issue(issue, args.details, args.instructions)
+
+            output.print_final_score(max(0, 10 - analysis.score(result.issues)))
 #        except Exception as ex:
 #            print("ERROR!", "Unable to scan {}:{}".format(*addr), ex)
+    
+    output.end()
 
 def collect_dh_groups(result, addr):
     known_count = len(result.dh_gex_groups)

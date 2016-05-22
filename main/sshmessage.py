@@ -3,6 +3,7 @@ This might look like an SSH protocol implementation. IT IS NOT. It's not even
 remotely secure. Nothing is verified, nothing is random. DO NOT USE.
 """
 
+import binascii
 import struct
 
 from sshtransport import BinaryPacket
@@ -62,6 +63,9 @@ class SSHStruct(object):
                 name
             ))
 
+    def __dir__(self):
+        return object.__dir__(self) + list(self.__values.keys())
+
     def __eq__(self, value):
         return type(self) == type(value) and self.__values == value.__values
 
@@ -89,6 +93,12 @@ class SSHStruct(object):
             data += s.to_bytes(self.__values[s.name])
 
         return data
+
+    def to_dict(self):
+        result = {}
+        for key, value in self.__values.items():
+            result[key] = binascii.hexlify(value).decode() if type(value) == bytes else value
+        return result
 
 class SSHMessage(SSHStruct):
     def __init__(self, message_type, *args, **kwargs):

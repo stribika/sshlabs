@@ -74,7 +74,7 @@ def analyze_kex_init(kex_init):
 
 def is_downgrade_resistant(issues):
     for issue in issues:
-        if issue.severity >= Severity.warning and issue.what == "weak key exchange hash":
+        if issue.severity >= Severity.warning and issue.what == "Key exchange: weak hash":
             return False
     return True
 
@@ -91,22 +91,27 @@ def analyze_authenticated_encryption(encryption_algorithms, mac_algorithms, best
     
     for cipher_algo in encryption_algorithms:
         if cipher_algo not in known_ciphers:
-            choices.append(authenticated_encryption_issues(None, None, Issue(Severity.info, "unknown cipher", encr_algo)))
+            choices.append(authenticated_encryption_issues(
+                None,
+                None,
+                issue_unknown("cipher", cipher_algo)
+            ))
             continue
 
-        cipher = known_ciphers[cipher_algo]
-
-        if cipher.mode == CipherMode.AEAD:
-            choices.append(authenticated_encryption_issues(cipher, None))
+        if known_ciphers[cipher_algo].mode == CipherMode.AEAD:
+            choices.append(authenticated_encryption_issues(cipher_algo, None))
             continue
         
         for mac_algo in mac_algorithms:
             if mac_algo not in known_macs:
-                choices.append(authenticated_encryption_issues(cipher, None, Issue(Severity.info, "unknown MAC", mac_algo)))
+                choices.append(authenticated_encryption_issues(
+                    cipher_algo,
+                    None,
+                    issue_unknown("MAC", mac_algo)
+                ))
                 continue
 
-            mac = known_macs[mac_algo]
-            choices.append(authenticated_encryption_issues(cipher, mac))
+            choices.append(authenticated_encryption_issues(cipher_algo, mac_algo))
 
     for choice in choices:
         if best_case: return choice
@@ -116,17 +121,21 @@ def analyze_authenticated_encryption(encryption_algorithms, mac_algorithms, best
 
     return worst
 
-def authenticated_encryption_issues(cipher, mac, *unknowns):
+def authenticated_encryption_issues(cipher_algo, mac_algo, *unknowns):
     issues = []
+    cipher = None
+    mac = None
 
-    if cipher:
+    if cipher_algo:
+        cipher = known_ciphers[cipher_algo]
         issues += cipher.issues
 
-    if mac:
+    if mac_algo:
+        mac = known_macs[mac_algo]
         issues += mac.issues
 
     if cipher and mac and cipher.mode == CipherMode.CBC and mac.mode == MACMode.EAM:
-        issues.append(Issue(Severity.warning, "CBC-and-MAC"))
+        issues.append(issue_authencr_cbc_and_mac(Severity.warning, cipher_algo, mac_algo))
 
     issues += unknowns
     return issues
@@ -135,15 +144,17 @@ def analyze_kex_algorithms(kex_init):
     issues = []
     
     for algo in kex_init.kex_algorithms:
-        issues += known_kex_algorithms.get(
-            algo,
-            [ Issue(Severity.info, "unknown key exchange algorithm", algo) ]
-        )
+        issues += known_kex_algorithms.get(algo, [ issue_unknown("key exchange", algo) ])
 
     return issues
 
 def analyze_host_key_algorithms(kex_init):
-    return []
+    issues = []
+
+    for algo in kex_init.server_host_key_algorithms:
+        issues += known_host_key_algorithms.get(algo, [ issue_unknown("host key", algo) ])
+
+    return issues
 
 def analyze_dh_groups(dh_groups, fast):
     issues = []
@@ -151,9 +162,9 @@ def analyze_dh_groups(dh_groups, fast):
     for group in dh_groups:
         size = math.ceil(math.log(group.prime, 2))
         if size <= 2**10:
-            issues.append(Issue(Severity.error, "small DH group", str(size) + " bits", group))
+            issues.append(issue_kex_dh_gex_small_group(Severity.error, group, size))
         elif size <= 2**10 + 2**9:
-            issues.append(Issue(Severity.warning, "small DH group", str(size) + " bits", group))
+            issues.append(issue_kex_dh_gex_small_group(Severity.warning, group, size))
 
     if fast:
         return issues
@@ -177,6 +188,6 @@ def analyze_dh_groups(dh_groups, fast):
 
     if not dh_groups.issubset(safe_groups):
         for unsafe_group in dh_groups.difference(safe_groups):
-            issues.append(Issue(Severity.critical, "unsafe DH group", unsafe_group))
+            issues.append(issue_kex_dh_gex_unsafe_group(Severity.critical, unsafe_group))
 
     return issues

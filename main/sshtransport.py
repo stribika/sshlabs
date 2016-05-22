@@ -48,6 +48,9 @@ class IdentificationString(object):
             version_and_comments += " " + self.comments
         return "SSH-{0}-{1}".format(self.protoversion, version_and_comments)
 
+    def to_dict(self):
+        return self.__dict__
+
 class BinaryPacket(object):
     """
     From RFC 4253
