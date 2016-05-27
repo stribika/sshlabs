@@ -78,7 +78,7 @@ severity,
 "Key exchange: small DH group",
 """The security of the Diffie-Hellman key exchange relies on the difficulty of
 the discrete logarithm problem. The server is configured to use Diffie-Hellman
-group exchange, and uses a prime modulus too small (only {1} bits) to provide
+group exchange, and uses a prime modulus too small (only {0} bits) to provide
 forward secrecy.""".format(size),
 """Remove the line with prime modulus {0:x} and generator {1:x} from
 /etc/ssh/moduli with the following commands:
