@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from traceback import format_exc
 
 parser = argparse.ArgumentParser(description="Generate SSH moduli file")
 parser.add_argument("-a", "--cpu-affinity",
@@ -27,12 +28,11 @@ class Pool(object):
         self.threads = threads
         self.processes = [ None ] * self.threads
 
-    def submit(self, callback, *args):
-        self.queue.append(( args, callback ))
-        try:
-            self.__start(self.processes.index(None))
-        except ValueError:
-            pass
+    def submit(self, priority, callback, *args):
+        self.queue.append(( args, callback, priority ))
+        self.queue.sort(key=lambda x: -x[2])
+        try: self.__start(self.processes.index(None))
+        except ValueError: pass
 
     def wait(self):
         while self.queue or self.processes != [ None ] * self.threads:
@@ -41,14 +41,16 @@ class Pool(object):
                     ( process, callback ) = self.processes[i]
                     try: process.wait(timeout=1)
                     except subprocess.TimeoutExpired: continue
-                    try: callback(process)
-                    except: print("oops, something went wrong", file=sys.stderr)
+                    try:
+                        callback(process)
+                    except:
+                        print("oops, something went wrong\n", format_exc(), file=sys.stderr)
                 self.__start(i)
 
     def __start(self, n):
         if self.queue:
             task = self.queue.pop(0)
-            ( command, callback ) = task
+            ( command, callback, priority ) = task
             if args.cpu_affinity:
                 core = hex(1 << n)[2:]
                 command = ( "taskset", core ) + command
@@ -70,6 +72,7 @@ output = open(args.output, "w")
 def generate(context):
     context.all_temp = tempfile.mkstemp(prefix="all." + str(context.size) + ".")
     pool.submit(
+        0,
         lambda p: test(context, p),
 #        "touch", context.all_temp[1]
         "ssh-keygen", "-G", context.all_temp[1], "-b", str(context.size)
@@ -108,6 +111,7 @@ def test(context, process):
         ctx.chunk_temp = chunk_temps[i]
         ctx.safe_temp = tempfile.mkstemp(prefix="safe.{}.{}.".format(ctx.size, ctx.chunk_id))
         pool.submit(
+            1,
             (lambda c: lambda p: gather(c, p))(ctx), # fucking wat
 #            "touch", ctx.safe_temp[1]
             "ssh-keygen", "-T", ctx.safe_temp[1], "-f", ctx.chunk_temp[1]
@@ -137,7 +141,7 @@ try:
         generate(context)
     pool.wait()
 except:
-    print("fatal error")
+    print("fatal error\n", format_exc())
     pool.shutdown()
 finally:
     output.close()
