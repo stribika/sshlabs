@@ -83,6 +83,7 @@ def test(context, process):
             "bit moduli in the output",
             file=sys.stderr
         )
+        os.unlink(context.all_temp[1])
         return
     chunk_temps = []
     for i in range(args.threads):
@@ -98,8 +99,8 @@ def test(context, process):
                     if line: print(line, file=chunk_temp[0])
                     else: break
                 if not line: break
-        os.unlink(context.all_temp[1])
     finally:
+        os.unlink(context.all_temp[1])
         for chunk_temp in chunk_temps: chunk_temp[0].close()
     for i in range(args.threads):
         ctx = copy(context)
@@ -113,20 +114,21 @@ def test(context, process):
         )
 
 def gather(context, process):
-    if process.returncode != 0:
-        print(
-            "tester process",
-            context.chunk_id,
-            "for",
-            context.size,
-            "bit moduli failed",
-            file=sys.stderr
-        )
-        return
-    with open(context.safe_temp[0], "r") as safe_file:
-        output.write(safe_file.read())
-    os.unlink(context.chunk_temp[1])
-    os.unlink(context.safe_temp[1])
+    try:
+        if process.returncode != 0:
+            print(
+                "tester process",
+                context.chunk_id,
+                "for",
+                context.size,
+                "bit moduli failed",
+                file=sys.stderr
+            )
+            return
+        with open(context.safe_temp[0], "r") as safe_file: output.write(safe_file.read())
+    finally:
+        os.unlink(context.chunk_temp[1])
+        os.unlink(context.safe_temp[1])
 
 try:
     for size in range(args.min_size, args.max_size + 1024, 1024):
