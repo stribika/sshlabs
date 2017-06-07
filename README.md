@@ -1,6 +1,12 @@
 # sshlabs
 
 
+## install / setup
+
+```bash
+  pip install -r requirements.txt
+```
+
 ## usage
 
 ```bash
