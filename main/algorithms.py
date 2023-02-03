@@ -192,16 +192,13 @@ KEX_DH_GEX_SHA1            = "diffie-hellman-group-exchange-sha1"
 KEX_DH_GEX_SHA256          = "diffie-hellman-group-exchange-sha256"
 KEX_DH_GROUP1_SHA1         = "diffie-hellman-group1-sha1"
 KEX_DH_GROUP14_SHA1        = "diffie-hellman-group14-sha1"
-KEX_DH_GROUP14_SHA256      = "diffie-hellman-group14-sha256"
-KEX_DH_GROUP15_SHA256      = "diffie-hellman-group15-sha256"
-KEX_DH_GROUP16_SHA256      = "diffie-hellman-group16-sha256"
-KEX_ECDH_CURVE25519_SHA256 = "curve25519-sha256@libssh.org"
 KEX_ECDH_NISTP256_SHA256   = "ecdh-sha2-nistp256"
 KEX_ECDH_NISTP384_SHA384   = "ecdh-sha2-nistp384"
-KEX_ECDH_NISTP521_SHA512   = "ecdh-sha2-nistp521"
 
 known_kex_algorithms = {
-    KEX_ECDH_CURVE25519_SHA256: [],
+    "sntrup761x25519-sha512@openssh.com": [],
+    "curve25519-sha256": [],
+    "curve25519-sha256@libssh.org": [],
     KEX_DH_GROUP1_SHA1: [
         issue_kex_dh_small_group(Severity.error, KEX_DH_GROUP1_SHA1, 1024),
         issue_kex_weak_hash(Severity.warning, KEX_DH_GROUP1_SHA1),
@@ -209,9 +206,10 @@ known_kex_algorithms = {
     KEX_DH_GROUP14_SHA1: [
         issue_kex_weak_hash(Severity.warning, KEX_DH_GROUP14_SHA1),
     ],
-    KEX_DH_GROUP14_SHA256: [],
-    KEX_DH_GROUP15_SHA256: [],
-    KEX_DH_GROUP16_SHA256: [],
+    "diffie-hellman-group14-sha256": [],
+    "diffie-hellman-group15-sha256": [],
+    "diffie-hellman-group16-sha256": [],
+    "diffie-hellman-group18-sha512": [],
     KEX_DH_GEX_SHA1: [
         issue_kex_weak_hash(Severity.warning, KEX_DH_GEX_SHA1),
     ],
@@ -222,7 +220,7 @@ known_kex_algorithms = {
     KEX_ECDH_NISTP384_SHA384: [
         issue_kex_ecdh_unsafe_curve(Severity.notice, KEX_ECDH_NISTP384_SHA384)
     ],
-    KEX_ECDH_NISTP521_SHA512: [],
+    "ecdh-sha2-nistp521": [],
 }
 
 known_ciphers = {
@@ -311,6 +309,7 @@ known_host_key_algorithms = {
     SIGN_RSA_SHA1: [],
     SIGN_RSA_SHA256: [],
     SIGN_RSA_SHA512: [],
+    "ssh-ed25519-cert-v01@openssh.com": []
 }
 
 
